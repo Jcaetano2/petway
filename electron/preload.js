@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('api', {
   usuariosUpdate: (data) => ipcRenderer.invoke('db:usuarios:update', data),
   usuariosUpdateStatus: (data) => ipcRenderer.invoke('db:usuarios:updateStatus', data),
   usuariosDelete: (data) => ipcRenderer.invoke('db:usuarios:delete', data),
+  usuariosResetAdminPassword: (data) => ipcRenderer.invoke('db:usuarios:resetAdminPassword', data),
 
   // Dashboard
   getStats: () => ipcRenderer.invoke('db:dashboard:getStats'),

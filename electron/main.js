@@ -1,11 +1,33 @@
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 const { app, BrowserWindow, ipcMain, protocol, net } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const { getDatabase } = require('./database');
 const { setupIpcHandlers } = require('./ipcHandlers');
 const { processarFilaReenvio } = require('./fiscal/fiscalService');
 const { initAutoBackupScheduler } = require('./backupService');
 const { autoUpdater } = require('electron-updater');
+
+const isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
+
+function configureDevelopmentRuntime() {
+  if (!isDev) return;
+
+  const devSessionPath = path.join(os.tmpdir(), 'petway-electron-dev-session', String(process.pid));
+  fs.mkdirSync(devSessionPath, { recursive: true });
+
+  try {
+    app.setPath('sessionData', devSessionPath);
+  } catch (err) {
+    console.warn('[Dev] Nao foi possivel isolar sessionData:', err.message);
+  }
+
+  app.commandLine.appendSwitch('disk-cache-dir', path.join(devSessionPath, 'Cache'));
+  app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
+}
+
+configureDevelopmentRuntime();
 
 // Declarar brand-logo:// como protocolo seguro (deve estar antes do app.whenReady)
 protocol.registerSchemesAsPrivileged([
@@ -19,7 +41,7 @@ let mainWindow;
 // ===========================
 function setupAutoUpdater() {
   // Em desenvolvimento, não tentar buscar atualizações reais
-  if (process.env.VITE_DEV_SERVER_URL) {
+  if (isDev) {
     console.log('[Updater] Modo desenvolvimento — atualizações desabilitadas.');
     return;
   }
@@ -97,7 +119,7 @@ function createWindow() {
   });
 
   // Load the UI
-  if (process.env.VITE_DEV_SERVER_URL) {
+  if (isDev) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     mainWindow.webContents.openDevTools();
   } else {

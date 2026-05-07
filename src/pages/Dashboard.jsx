@@ -81,7 +81,15 @@ function BarChartCanvas({ data, width = 400, height = 200 }) {
 function PieChartCanvas({ data, width = 220, height = 220 }) {
   const canvasRef = useRef(null);
   const colors = ['#8257E5', '#10B981', '#F59E0B', '#EF4444', '#6366F1'];
-  const labels = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', credito: 'Crédito', debito: 'Débito' };
+  const labels = {
+    dinheiro: 'Dinheiro',
+    pix: 'Pix',
+    cartao: 'Cartão',
+    cartao_debito: 'Cartão de Débito',
+    cartao_credito: 'Cartão de Crédito',
+    credito: 'Crédito',
+    debito: 'Débito'
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;

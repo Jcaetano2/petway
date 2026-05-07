@@ -9,6 +9,7 @@ import DetalheFiscalModal from '../components/DetalheFiscalModal';
 import { calcularPrecoServico } from '../utils/precoHelpers';
 import { useBranding } from '../context/BrandingContext';
 import { useLicense } from '../context/LicenseContext';
+import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import ModalConfirm from '../components/Common/ModalConfirm';
 
@@ -18,7 +19,9 @@ export default function PDV() {
   const { isPdvFocused, setIsPdvFocused } = React.useContext(PdvFocusContext) || {};
   const { branding } = useBranding();
   const { license, isValid } = useLicense();
+  const { user } = useAuth();
   const { showToast } = useToast();
+  const isMaster = user?.tipo_usuario === 'master';
   
   const searchInputRef = React.useRef(null);
   const valorRecebidoRef = useRef(null);
@@ -419,7 +422,7 @@ export default function PDV() {
   };
 
   const handleFinalizar = async (imprimir = false, emitirNfce = false) => {
-    if (!isValid) {
+    if (!isValid && !isMaster) {
       setModalConfirm({
         isOpen: true,
         title: 'Bloqueio de Licença',

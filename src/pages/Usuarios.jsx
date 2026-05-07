@@ -17,6 +17,11 @@ export default function Usuarios() {
   const [formError, setFormError] = useState('');
   const { showToast } = useToast();
   const [modalConfirm, setModalConfirm] = useState({ isOpen: false, title: '', message: '', type: 'info', onConfirm: () => {} });
+  const [isResetAdminOpen, setIsResetAdminOpen] = useState(false);
+  const [resetAdminData, setResetAdminData] = useState({ senha: '', confirmarSenha: '' });
+  const [resetAdminError, setResetAdminError] = useState('');
+  const isMaster = user?.tipo_usuario === 'master';
+  const visibleUsuarios = isMaster ? usuarios : usuarios.filter(u => u.tipo_usuario !== 'master' && u.login !== 'master');
 
   const loadData = async () => {
     setLoading(true);
@@ -44,6 +49,10 @@ export default function Usuarios() {
   };
 
   const handleToggleStatus = async (u) => {
+    if (u.tipo_usuario === 'master' || u.login === 'master') {
+      showToast('O usuário master é permanente e não pode ser inativado.', 'error');
+      return;
+    }
     if (u.id === user.id) {
       showToast('Você não pode inativar a si mesmo.', 'warning');
       return;
@@ -68,6 +77,10 @@ export default function Usuarios() {
 
   const handleDelete = (u) => {
     // Proteção dupla no frontend: admin intocável por qualquer um; auto-exclusão bloqueada
+    if (u.tipo_usuario === 'master' || u.login === 'master') {
+      showToast('O usuário master é permanente e não pode ser excluído.', 'error');
+      return;
+    }
     if (u.login === 'admin') {
       showToast('O usuário "admin" é permanente e não pode ser excluído.', 'error');
       return;
@@ -98,6 +111,39 @@ export default function Usuarios() {
     });
   };
 
+  const handleOpenResetAdmin = () => {
+    setResetAdminData({ senha: '', confirmarSenha: '' });
+    setResetAdminError('');
+    setIsResetAdminOpen(true);
+  };
+
+  const handleResetAdminPassword = async (e) => {
+    e.preventDefault();
+    setResetAdminError('');
+
+    if (resetAdminData.senha.length < 5) {
+      return setResetAdminError('A senha temporária deve ter no mínimo 5 caracteres.');
+    }
+    if (resetAdminData.senha !== resetAdminData.confirmarSenha) {
+      return setResetAdminError('As senhas não coincidem.');
+    }
+
+    const res = await api.usuarios.resetAdminPassword({
+      authToken: user.sessionToken,
+      newPassword: resetAdminData.senha
+    });
+
+    if (res.success) {
+      showToast('Senha do admin redefinida. O admin deverá alterá-la no próximo acesso.', 'success');
+      setIsResetAdminOpen(false);
+      setResetAdminData({ senha: '', confirmarSenha: '' });
+      loadData();
+    } else {
+      setResetAdminError(res.message || 'Erro ao redefinir senha do admin.');
+      showToast(res.message || 'Erro ao redefinir senha do admin.', 'error');
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError('');
@@ -125,7 +171,8 @@ export default function Usuarios() {
   };
 
   // Determina se o usuário alvo está protegido contra ações sensíveis
-  const isProtected = (u) => u.login === 'admin' && user?.login !== 'admin';
+  const isMasterUser = (u) => u.tipo_usuario === 'master' || u.login === 'master';
+  const isProtected = (u) => isMasterUser(u) || (u.login === 'admin' && user?.login !== 'admin');
   const isSelf = (u) => u.id === user?.id;
 
   return (
@@ -135,9 +182,16 @@ export default function Usuarios() {
             <h1 style={{ fontSize: '24px', fontWeight: 'bold' }}>Controle de Acessos</h1>
             <p style={{ color: 'var(--text-secondary)' }}>Gerencie os usuários e permissões do sistema.</p>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {isMaster && (
+              <button className="btn-outline" onClick={handleOpenResetAdmin} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <KeyRound size={18} /> Resetar Admin
+              </button>
+            )}
           <button className="btn" onClick={handleOpenNew} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Plus size={18} /> Novo Usuário
           </button>
+          </div>
        </div>
 
        <div className="card" style={{ flex: 1, padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -154,7 +208,7 @@ export default function Usuarios() {
             <tbody>
               {loading ? (
                 <tr><td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>Carregando dados...</td></tr>
-              ) : usuarios.map(u => (
+              ) : visibleUsuarios.map(u => (
                 <tr key={u.id} style={{ borderBottom: '1px solid var(--border-color)', opacity: u.ativo ? 1 : 0.5 }}>
                   <td style={{ padding: '16px 24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -168,6 +222,15 @@ export default function Usuarios() {
                           Protegido
                         </span>
                       )}
+                      {isMasterUser(u) && (
+                        <span style={{
+                          fontSize: '10px', fontWeight: '800', padding: '2px 6px',
+                          borderRadius: '4px', background: 'rgba(239,68,68,0.15)',
+                          color: '#EF4444', textTransform: 'uppercase', letterSpacing: '0.5px'
+                        }}>
+                          Master
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td style={{ padding: '16px 24px', color: 'var(--text-secondary)' }}>@{u.login}</td>
@@ -177,8 +240,8 @@ export default function Usuarios() {
                         borderRadius: '12px', 
                         fontSize: '12px', 
                         fontWeight: '600', 
-                        backgroundColor: u.tipo_usuario === 'administrador' ? 'rgba(var(--primary-rgb), 0.1)' : 'rgba(255,255,255,0.05)',
-                        color: u.tipo_usuario === 'administrador' ? 'var(--primary)' : 'var(--text-secondary)'
+                        backgroundColor: u.tipo_usuario === 'master' ? 'rgba(239,68,68,0.12)' : u.tipo_usuario === 'administrador' ? 'rgba(var(--primary-rgb), 0.1)' : 'rgba(255,255,255,0.05)',
+                        color: u.tipo_usuario === 'master' ? '#EF4444' : u.tipo_usuario === 'administrador' ? 'var(--primary)' : 'var(--text-secondary)'
                      }}>
                         {u.tipo_usuario.toUpperCase()}
                      </span>
@@ -209,7 +272,7 @@ export default function Usuarios() {
                       </button>
 
                       {/* Botão Excluir — oculto para admin e para o próprio usuário logado */}
-                      {u.login !== 'admin' && !isSelf(u) && (
+                      {u.login !== 'admin' && !isMasterUser(u) && !isSelf(u) && (
                         <button
                           onClick={() => handleDelete(u)}
                           title="Excluir usuário permanentemente"
@@ -243,6 +306,51 @@ export default function Usuarios() {
             </tbody>
           </table>
        </div>
+
+       {isResetAdminOpen && (
+         <div className="modal-overlay">
+           <div className="modal animate-scale-up" style={{ width: '420px' }}>
+             <h2 style={{ marginBottom: '8px', fontSize: '20px' }}>Resetar Senha do Admin</h2>
+             <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '20px', lineHeight: '1.5' }}>
+               Defina uma senha temporária. No próximo acesso, o admin será obrigado a alterá-la.
+             </p>
+
+             {resetAdminError && (
+               <div style={{ padding: '12px', borderRadius: '8px', backgroundColor: 'rgba(255, 82, 82, 0.1)', border: '1px solid var(--danger)', color: 'var(--danger)', fontSize: '14px', marginBottom: '16px' }}>
+                 {resetAdminError}
+               </div>
+             )}
+
+             <form onSubmit={handleResetAdminPassword} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+               <div className="input-group">
+                 <label>Nova Senha Temporária</label>
+                 <input
+                   autoFocus
+                   required
+                   type="password"
+                   className="input"
+                   value={resetAdminData.senha}
+                   onChange={e => setResetAdminData({ ...resetAdminData, senha: e.target.value })}
+                 />
+               </div>
+               <div className="input-group">
+                 <label>Confirmar Senha</label>
+                 <input
+                   required
+                   type="password"
+                   className="input"
+                   value={resetAdminData.confirmarSenha}
+                   onChange={e => setResetAdminData({ ...resetAdminData, confirmarSenha: e.target.value })}
+                 />
+               </div>
+               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+                 <button type="button" className="btn-outline" onClick={() => setIsResetAdminOpen(false)}>Cancelar</button>
+                 <button type="submit" className="btn">Resetar Senha</button>
+               </div>
+             </form>
+           </div>
+         </div>
+       )}
 
        {isModalOpen && (
          <div className="modal-overlay">

@@ -12,6 +12,8 @@ function hashPassword(password) {
   return `${salt}:${hash}`;
 }
 
+const MASTER_BOOTSTRAP_PASSWORD_HASH = '79236e42f9fed34adad4b017c05097b9:c427b21c738bff1b8e38cf3376699bff2e8485336979f906a44595e2fefcdf654362f7689283f7a14a4d8e65ca45a0467c9f593122173b9772c3fb4e7d80d97b';
+
 async function initDatabase() {
   const userDataPath = app.getPath('userData');
   const dbPath = path.join(userDataPath, 'petshop.db');
@@ -454,6 +456,14 @@ async function initDatabase() {
   if (adminRow && adminRow.count === 0) {
     const defaultPassword = hashPassword('admin');
     await db.run("INSERT INTO usuarios (nome, login, senha, tipo, tipo_usuario) VALUES (?, ?, ?, ?, ?)", ['Administrador', 'admin', defaultPassword, 'admin', 'administrador']);
+  }
+
+  // Insert default master (Suporte)
+  const masterRowCheck = await db.get("SELECT count(*) as count FROM usuarios WHERE login = 'master'");
+  if (masterRowCheck && masterRowCheck.count === 0) {
+    const masterPassword = hashPassword('petway@master');
+    await db.run("INSERT INTO usuarios (nome, login, senha, tipo, tipo_usuario, ativo) VALUES (?, ?, ?, ?, ?, ?)", 
+      ['MASTER SUPORTE', 'master', masterPassword, 'admin', 'master', 1]);
   }
 
   // Insert default config_impressao

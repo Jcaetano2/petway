@@ -1,7 +1,7 @@
 {
   "name": "petshop-desktop",
   "private": true,
-  "version": "1.1.3",
+  "version": "1.1.4",
   "author": "PetWay Dev Team",
   "description": "PetWay - Sistema Inteligente para Gestão de Pet Shops",
   "main": "dist-electron/main.js",

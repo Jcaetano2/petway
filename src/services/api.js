@@ -8,7 +8,8 @@ export const api = {
     create: async (data) => window.api ? await window.api.usuariosCreate(data) : { success: false },
     update: async (data) => window.api ? await window.api.usuariosUpdate(data) : { success: false },
     updateStatus: async (data) => window.api ? await window.api.usuariosUpdateStatus(data) : { success: false },
-    delete: async (data) => window.api ? await window.api.usuariosDelete(data) : { success: false }
+    delete: async (data) => window.api ? await window.api.usuariosDelete(data) : { success: false },
+    resetAdminPassword: async (data) => window.api ? await window.api.usuariosResetAdminPassword(data) : { success: false }
   },
   dashboard: {
     getStats: async () => window.api ? await window.api.getStats() : { agendamentosHoje: 0, emAndamento: 0, finalizados: 0, faturamentoDia: 0, vendasDia: 0, faturamentoMes: 0, vendasMes: 0, ticketMedio: 0, atendimentosDia: 0, vendasPorDia: [], formasPagamento: [], topProdutos: [], topServicos: [] },

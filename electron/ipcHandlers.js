@@ -25,9 +25,30 @@ function getSession(payload = {}) {
   return payload.authToken ? sessions.get(payload.authToken) : null;
 }
 
-function isAdminSession(payload = {}) {
+function isPrivilegedSession(payload = {}) {
   const session = getSession(payload);
-  return session?.tipo_usuario === 'administrador';
+  return ['administrador', 'master'].includes(session?.tipo_usuario);
+}
+
+function isMasterSession(payload = {}) {
+  const session = getSession(payload);
+  return session?.tipo_usuario === 'master';
+}
+
+function isMasterUser(user) {
+  return user?.login === 'master' || user?.tipo_usuario === 'master';
+}
+
+function isMaster(session) {
+  return session?.tipo_usuario === 'master';
+}
+
+function normalizeUserType(tipoUsuario) {
+  return tipoUsuario === 'administrador' ? 'administrador' : 'operador';
+}
+
+function legacyUserType(tipoUsuario) {
+  return tipoUsuario === 'administrador' ? 'admin' : 'funcionario';
 }
 
 async function ensureConfigFiscal(db) {
@@ -79,69 +100,86 @@ function setupIpcHandlers(ipcMain) {
 
   // ======= GESTÃO DE USUÁRIOS (ADMIN ONLY) =======
   ipcMain.handle('db:usuarios:getAll', async (event, payload = {}) => {
-    if (!isAdminSession(payload)) return { success: false, message: 'Acesso negado.' };
+    if (!isPrivilegedSession(payload)) return { success: false, message: 'Acesso negado.' };
     try {
       const db = await getDatabase();
-      const rows = await db.all('SELECT id, nome, login, tipo_usuario, ativo FROM usuarios ORDER BY nome ASC');
+      const session = getSession(payload);
+      const rows = session?.tipo_usuario === 'master'
+        ? await db.all('SELECT id, nome, login, tipo_usuario, ativo FROM usuarios ORDER BY nome ASC')
+        : await db.all("SELECT id, nome, login, tipo_usuario, ativo FROM usuarios WHERE tipo_usuario != 'master' AND login != 'master' ORDER BY nome ASC");
       return { success: true, data: rows };
     } catch (e) { return { success: false, message: e.message }; }
   });
 
   ipcMain.handle('db:usuarios:create', async (event, { authToken, nome, login, senha, tipo_usuario }) => {
-    if (!isAdminSession({ authToken })) return { success: false, message: 'Acesso negado.' };
+    if (!isPrivilegedSession({ authToken })) return { success: false, message: 'Acesso negado.' };
     try {
+      const tipoNormalizado = normalizeUserType(tipo_usuario);
       const db = await getDatabase();
       const exist = await db.get('SELECT id FROM usuarios WHERE login = ?', [login]);
       if (exist) return { success: false, message: 'Login já está em uso.' };
       const hash = hashPassword(senha);
       // Aqui usamos os dois campos para não quebrar compatibilidade
-      await db.run('INSERT INTO usuarios (nome, login, senha, tipo, tipo_usuario) VALUES (?, ?, ?, ?, ?)', [nome, login, hash, tipo_usuario === 'administrador' ? 'admin' : 'funcionario', tipo_usuario]);
+      await db.run('INSERT INTO usuarios (nome, login, senha, tipo, tipo_usuario) VALUES (?, ?, ?, ?, ?)', [nome, login, hash, legacyUserType(tipoNormalizado), tipoNormalizado]);
       return { success: true };
     } catch (e) { return { success: false, message: e.message }; }
   });
 
   ipcMain.handle('db:usuarios:update', async (event, { authToken, requesterLogin, id, nome, login, senha, tipo_usuario }) => {
-    if (!isAdminSession({ authToken })) return { success: false, message: 'Acesso negado.' };
+    if (!isPrivilegedSession({ authToken })) return { success: false, message: 'Acesso negado.' };
     const session = getSession({ authToken });
     requesterLogin = session.login;
+    const tipoNormalizado = normalizeUserType(tipo_usuario);
     try {
       const db = await getDatabase();
-      const targetUser = await db.get('SELECT login FROM usuarios WHERE id = ?', [id]);
+      const targetUser = await db.get('SELECT id, login, tipo_usuario FROM usuarios WHERE id = ?', [id]);
 
-      if (targetUser && targetUser.login === 'admin') {
-        if (requesterLogin !== 'admin') {
-          return { success: false, message: 'Acesso negado: Apenas o usuário admin original pode modificar sua própria conta.' };
+      if (!targetUser) return { success: false, message: 'UsuÃ¡rio nÃ£o encontrado.' };
+
+      if (isMasterUser(targetUser) && !isMaster(session)) {
+        return { success: false, message: 'O usuário master é protegido e não pode ser visualizado ou editado por administradores comuns.' };
+      }
+
+      if (targetUser.login === 'admin') {
+        if (requesterLogin !== 'admin' && !isMaster(session)) {
+          return { success: false, message: 'Acesso negado: Apenas o usuário admin original ou um Master podem modificar esta conta.' };
         }
         if (login !== 'admin') {
           return { success: false, message: 'O login do usuário admin original não pode ser alterado.' };
         }
-        if (tipo_usuario !== 'administrador') {
+        if (tipoNormalizado !== 'administrador') {
           return { success: false, message: 'O usuário admin original não pode perder o status de administrador.' };
         }
       }
 
       if (senha) {
         const hash = hashPassword(senha);
-        await db.run('UPDATE usuarios SET nome=?, login=?, senha=?, senha_padrao_alterada=0, tipo=?, tipo_usuario=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [nome, login, hash, tipo_usuario === 'administrador' ? 'admin' : 'funcionario', tipo_usuario, id]);
+        await db.run('UPDATE usuarios SET nome=?, login=?, senha=?, senha_padrao_alterada=0, tipo=?, tipo_usuario=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [nome, login, hash, legacyUserType(tipoNormalizado), tipoNormalizado, id]);
       } else {
-        await db.run('UPDATE usuarios SET nome=?, login=?, tipo=?, tipo_usuario=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [nome, login, tipo_usuario === 'administrador' ? 'admin' : 'funcionario', tipo_usuario, id]);
+        await db.run('UPDATE usuarios SET nome=?, login=?, tipo=?, tipo_usuario=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [nome, login, legacyUserType(tipoNormalizado), tipoNormalizado, id]);
       }
       return { success: true };
     } catch (e) { return { success: false, message: e.message }; }
   });
 
   ipcMain.handle('db:usuarios:updateStatus', async (event, { authToken, requesterLogin, id, ativo }) => {
-    if (!isAdminSession({ authToken })) return { success: false, message: 'Acesso negado.' };
+    if (!isPrivilegedSession({ authToken })) return { success: false, message: 'Acesso negado.' };
     const session = getSession({ authToken });
     requesterLogin = session.login;
     try {
       const db = await getDatabase();
-      const targetUser = await db.get('SELECT login FROM usuarios WHERE id = ?', [id]);
+      const targetUser = await db.get('SELECT id, login, tipo_usuario FROM usuarios WHERE id = ?', [id]);
 
-      if (targetUser && targetUser.login === 'admin' && requesterLogin !== 'admin') {
+      if (!targetUser) return { success: false, message: 'Usuario nao encontrado.' };
+
+      if (isMasterUser(targetUser)) {
+        return { success: false, message: 'O usuario master e permanente e nao pode ser inativado.' };
+      }
+
+      if (targetUser.login === 'admin' && requesterLogin !== 'admin') {
         return { success: false, message: 'Acesso negado: O usuário admin original não pode ser inativado por outros usuários.' };
       }
-      if (targetUser && targetUser.login === 'admin' && !ativo) {
+      if (targetUser.login === 'admin' && !ativo) {
         return { success: false, message: 'O usuário admin original é permanente e não pode ser inativado.' };
       }
 
@@ -151,12 +189,16 @@ function setupIpcHandlers(ipcMain) {
   });
 
   ipcMain.handle('db:usuarios:delete', async (event, { authToken, requesterLogin, id }) => {
-    if (!isAdminSession({ authToken })) return { success: false, message: 'Acesso negado.' };
+    if (!isPrivilegedSession({ authToken })) return { success: false, message: 'Acesso negado.' };
     const session = getSession({ authToken });
     requesterLogin = session.login;
     try {
       const db = await getDatabase();
-      const targetUser = await db.get('SELECT login FROM usuarios WHERE id = ?', [id]);
+      const targetUser = await db.get('SELECT id, login, tipo_usuario FROM usuarios WHERE id = ?', [id]);
+
+      if (isMasterUser(targetUser)) {
+        return { success: false, message: 'O usuario master e permanente e nao pode ser excluido.' };
+      }
 
       if (!targetUser) return { success: false, message: 'Usuário não encontrado.' };
 
@@ -176,6 +218,26 @@ function setupIpcHandlers(ipcMain) {
   });
 
 
+
+  ipcMain.handle('db:usuarios:resetAdminPassword', async (event, { authToken, newPassword }) => {
+    if (!isMasterSession({ authToken })) return { success: false, message: 'Acesso negado.' };
+    if (typeof newPassword !== 'string' || newPassword.length < 5) {
+      return { success: false, message: 'A senha temporaria deve ter no minimo 5 caracteres.' };
+    }
+
+    try {
+      const db = await getDatabase();
+      const admin = await db.get("SELECT id FROM usuarios WHERE login = 'admin'");
+      if (!admin) return { success: false, message: 'Usuario admin nao encontrado.' };
+
+      const hash = hashPassword(newPassword);
+      await db.run(
+        'UPDATE usuarios SET senha=?, senha_padrao_alterada=0, ativo=1, tipo=?, tipo_usuario=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+        [hash, 'admin', 'administrador', admin.id]
+      );
+      return { success: true };
+    } catch (e) { return { success: false, message: e.message }; }
+  });
 
   // ======= DASHBOARD =======
   ipcMain.handle('db:dashboard:getStats', async () => {

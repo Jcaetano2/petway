@@ -120,6 +120,7 @@ function Sidebar() {
   const { logout, user } = useAuth();
   const location = useLocation();
   const { branding } = useBranding();
+  const isPrivileged = ['administrador', 'master'].includes(user?.tipo_usuario);
 
   const operacaoLinks = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -164,7 +165,7 @@ function Sidebar() {
         
         <div className="sidebar-group-label" style={{ color: 'var(--text-secondary)' }}>Operação</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '0 12px' }}>
-          {operacaoLinks.filter(l => user?.tipo_usuario === 'administrador' || ['/pdv'].includes(l.path)).map(link => {
+          {operacaoLinks.filter(l => isPrivileged || ['/pdv'].includes(l.path)).map(link => {
             const Icon = link.icon;
             const isActive = location.pathname === link.path;
             return <NavLink key={link.path} to={link.path} className={`nav-item ${isActive ? 'active' : ''}`}><Icon size={18} />{link.label}</NavLink>;
@@ -173,7 +174,7 @@ function Sidebar() {
 
         <div className="sidebar-group-label" style={{ marginTop: '24px', color: 'var(--text-secondary)' }}>Cadastros</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '0 12px' }}>
-          {cadastroLinks.filter(l => user?.tipo_usuario === 'administrador' || ['/agenda', '/clientes', '/pets'].includes(l.path)).map(link => {
+          {cadastroLinks.filter(l => isPrivileged || ['/agenda', '/clientes', '/pets'].includes(l.path)).map(link => {
             const Icon = link.icon;
             const isActive = location.pathname === link.path;
             return <NavLink key={link.path} to={link.path} className={`nav-item ${isActive ? 'active' : ''}`}><Icon size={18} />{link.label}</NavLink>;
@@ -184,7 +185,7 @@ function Sidebar() {
 
       <div style={{ padding: '16px', borderTop: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
         <div className="sidebar-group-label" style={{ margin: '0 0 8px 0', color: 'var(--text-secondary)' }}>Sistema</div>
-        {user?.tipo_usuario === 'administrador' && (
+        {isPrivileged && (
           <>
             <NavLink to="/usuarios" className={`nav-item ${location.pathname === '/usuarios' ? 'active' : ''}`}><Users size={18} /> Usuários</NavLink>
             <NavLink to="/configuracoes" className={`nav-item ${location.pathname === '/configuracoes' ? 'active' : ''}`}><Settings size={18} /> Configurações</NavLink>
@@ -199,6 +200,11 @@ function Sidebar() {
 function Topbar() {
   const { user } = useAuth();
   const location = useLocation();
+  const roleLabel = user?.tipo_usuario === 'master'
+    ? 'Master'
+    : user?.tipo_usuario === 'administrador'
+      ? 'Administrador'
+      : 'Funcionário';
 
   const getPageTitle = (path) => {
     switch (path) {
@@ -226,7 +232,7 @@ function Topbar() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontWeight: '600', fontSize: '14px', color: 'var(--text-primary)' }}>{user?.nome}</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{user?.tipo_usuario === 'administrador' ? 'Administrador' : 'Funcionário'}</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{roleLabel}</div>
         </div>
         <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: 'rgba(var(--primary-rgb), 0.2)', border: '1px solid var(--primary)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
           {user?.nome?.charAt(0).toUpperCase()}
@@ -247,6 +253,7 @@ export default function Layout({ children }) {
   const [errorPx, setErrorPx] = React.useState('');
 
   const mustChangePassword = user?.senha_padrao_alterada === 0;
+  const isMaster = user?.tipo_usuario === 'master';
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
@@ -302,7 +309,7 @@ export default function Layout({ children }) {
       )}
 
       {/* Expired License Global Overlay */}
-      {!isLoading && !isValid && (
+      {!isLoading && !isValid && user?.tipo_usuario !== 'master' && (
         <LicenseBlockOverlay />
       )}
 

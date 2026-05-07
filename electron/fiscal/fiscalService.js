@@ -82,8 +82,7 @@ async function validateFiscalConfig() {
   const errors = [];
   const provider = getFiscalProvider(cfg);
   if (!cfg.cnpj || cfg.cnpj.replace(/\D/g, '').length !== 14) errors.push('CNPJ nao preenchido ou invalido.');
-  if (provider === 'gatewayx' && !cfg.api_token) cfg.api_token = '__gatewayx__';
-  if (!cfg.cnpj || cfg.cnpj.replace(/\D/g, '').length < 11) errors.push('CNPJ não preenchido ou inválido.');
+  if (provider === 'focus' && (!cfg.api_token || cfg.api_token.trim() === '')) errors.push('Token da API Focus NFe nao preenchido.');
   if (!cfg.csc || cfg.csc.trim() === '') errors.push('CSC (Código de Segurança do Contribuinte) não preenchido.');
   if (!cfg.csc_id || cfg.csc_id.trim() === '') errors.push('CSC ID não preenchido.');
   if (!cfg.serie_nfce || cfg.serie_nfce <= 0) errors.push('Série NFC-e inválida.');
@@ -91,8 +90,6 @@ async function validateFiscalConfig() {
   if (!cfg.ie) errors.push('Inscrição Estadual não preenchida.');
   if (!cfg.razao_social) errors.push('Razão Social não preenchida.');
   if (!cfg.uf) errors.push('UF não preenchida.');
-  if (!cfg.api_token || cfg.api_token.trim() === '') errors.push('Token da API Focus NFe não preenchido.');
-
   if (!['focus', 'gatewayx'].includes(provider)) errors.push('Provedor fiscal invalido.');
   if (provider === 'gatewayx' && (!cfg.api_url || cfg.api_url.trim() === '')) errors.push('Endpoint da API Fiscal Gateway-X nao preenchido.');
 
@@ -281,45 +278,9 @@ async function emitirNfce(vendaId) {
   await db.run('UPDATE config_fiscal SET proximo_numero_nfce = proximo_numero_nfce + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [cfg.id]);
 
   try {
-    // 8. Roteamento Inteligente (API Fiscal Gateway-X Exclusiva)
-    let result = await sendNfceByProvider(cfg, focusPayload, referencia, vendaId);
-    const apiProvider = 'handled';
-    const apiUrl = '';
+    // 8. Enviar pelo provedor fiscal configurado.
+    const result = await sendNfceByProvider(cfg, focusPayload, referencia, vendaId);
     
-    if (apiProvider === 'gatewayx' || !apiProvider || apiProvider === 'focus') {
-      try {
-        const response = await fetch(`${apiUrl}/emitir`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ venda_id: vendaId, modelo: "65" })
-        });
-        const motorData = await response.json();
-        
-        if (response.ok && (motorData.sucesso || motorData.contingencia)) {
-          // Motor ACBr Local Autorizou - Traduzimos para o formato que salva no SQLite do Petway Desktop
-          result = {
-            data: {
-              status: 'autorizado',
-              chave_nfe: motorData.chave || 'CONTINGENCIA',
-              protocolo: 'PETWAYMOTOR',
-              url_danfe: motorData.danfe_url || '',
-              mensagem_sefaz: motorData.mensagem || 'Autorizada via ACBr'
-            },
-            rawResponse: JSON.stringify(motorData),
-            httpStatus: 200
-          };
-        } else {
-          // Rejeição mapeada
-          result = {
-            httpStatus: response.status,
-            data: { mensagem_sefaz: motorData.detail || "Erro desconhecido do Motor Fiscal." }
-          };
-        }
-      } catch (err) {
-        throw new Error("Falha na conexão com API Fiscal Gateway-X: " + err.message);
-      }
-    }
-
     if (result.data && result.data.status === 'autorizado') {
       // Autorizada — persistir retorno completo
       await db.run(`
@@ -357,7 +318,8 @@ async function emitirNfce(vendaId) {
 
     } else {
       // Falha API — verificar se é temporário
-      const isTemporary = result.httpStatus >= 500 || result.httpStatus === 429 || result.httpStatus === 408;
+      const httpStatus = result.httpStatus || 0;
+      const isTemporary = httpStatus >= 500 || httpStatus === 429 || httpStatus === 408;
       const finalStatus = isTemporary ? 'pendente_reenvio' : 'rejeitado';
       const mensagemErro = result.data?.mensagem_sefaz || result.data?.mensagem || result.data?.erros?.[0]?.mensagem || JSON.stringify(result.data);
 
@@ -377,7 +339,7 @@ async function emitirNfce(vendaId) {
 
       return {
         success: false,
-        error: `Rejeição SEFAZ: ${mensagemErro}`,
+        error: `Rejeicao da API fiscal (${getProviderLabel(cfg)}): ${mensagemErro}`,
         data: result.data,
         status_fiscal: finalStatus
       };
@@ -397,7 +359,7 @@ async function emitirNfce(vendaId) {
       WHERE id = ?
     `, [newStatus, `Erro de comunicação: ${networkError.message}`, fiscalVendaId]);
 
-    return { success: false, error: `Falha de comunicação com API Focus NFe: ${networkError.message}`, status_fiscal: newStatus };
+    return { success: false, error: `Falha de comunicacao com API fiscal (${getProviderLabel(cfg)}): ${networkError.message}`, status_fiscal: newStatus };
   }
 }
 

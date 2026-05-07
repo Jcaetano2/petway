@@ -24,6 +24,7 @@ import { api } from './services/api';
 import './index.css';
 
 export const PdvFocusContext = React.createContext();
+const ADMIN_ROLES = ['administrador', 'master'];
 
 const RoleRoute = ({ children, allowedRoles }) => {
   const { user } = useAuth();
@@ -61,7 +62,7 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             
-            <Route path="/" element={<ProtectedRoute><RoleRoute allowedRoles={['administrador']}><Dashboard /></RoleRoute></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><RoleRoute allowedRoles={ADMIN_ROLES}><Dashboard /></RoleRoute></ProtectedRoute>} />
             <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
             <Route path="/pets" element={<ProtectedRoute><Pets /></ProtectedRoute>} />
             <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
@@ -69,14 +70,14 @@ export default function App() {
             <Route path="/pdv" element={<ProtectedRoute><PDV /></ProtectedRoute>} />
             
             {/* ROTAS ADMINISTRATIVAS */}
-            <Route path="/produtos" element={<ProtectedRoute><RoleRoute allowedRoles={['administrador']}><Produtos /></RoleRoute></ProtectedRoute>} />
-            <Route path="/servicos" element={<ProtectedRoute><RoleRoute allowedRoles={['administrador']}><Servicos /></RoleRoute></ProtectedRoute>} />
-            <Route path="/caixa" element={<ProtectedRoute><RoleRoute allowedRoles={['administrador']}><Caixa /></RoleRoute></ProtectedRoute>} />
-            <Route path="/atendimento" element={<ProtectedRoute><RoleRoute allowedRoles={['administrador']}><Atendimento /></RoleRoute></ProtectedRoute>} />
-            <Route path="/pendencias-fiscais" element={<ProtectedRoute><RoleRoute allowedRoles={['administrador']}><PendenciasFiscais /></RoleRoute></ProtectedRoute>} />
-            <Route path="/estoque" element={<ProtectedRoute><RoleRoute allowedRoles={['administrador']}><Estoque /></RoleRoute></ProtectedRoute>} />
-            <Route path="/configuracoes" element={<ProtectedRoute><RoleRoute allowedRoles={['administrador']}><Configuracoes /></RoleRoute></ProtectedRoute>} />
-            <Route path="/usuarios" element={<ProtectedRoute><RoleRoute allowedRoles={['administrador']}><Usuarios /></RoleRoute></ProtectedRoute>} />
+            <Route path="/produtos" element={<ProtectedRoute><RoleRoute allowedRoles={ADMIN_ROLES}><Produtos /></RoleRoute></ProtectedRoute>} />
+            <Route path="/servicos" element={<ProtectedRoute><RoleRoute allowedRoles={ADMIN_ROLES}><Servicos /></RoleRoute></ProtectedRoute>} />
+            <Route path="/caixa" element={<ProtectedRoute><RoleRoute allowedRoles={ADMIN_ROLES}><Caixa /></RoleRoute></ProtectedRoute>} />
+            <Route path="/atendimento" element={<ProtectedRoute><RoleRoute allowedRoles={ADMIN_ROLES}><Atendimento /></RoleRoute></ProtectedRoute>} />
+            <Route path="/pendencias-fiscais" element={<ProtectedRoute><RoleRoute allowedRoles={ADMIN_ROLES}><PendenciasFiscais /></RoleRoute></ProtectedRoute>} />
+            <Route path="/estoque" element={<ProtectedRoute><RoleRoute allowedRoles={ADMIN_ROLES}><Estoque /></RoleRoute></ProtectedRoute>} />
+            <Route path="/configuracoes" element={<ProtectedRoute><RoleRoute allowedRoles={ADMIN_ROLES}><Configuracoes /></RoleRoute></ProtectedRoute>} />
+            <Route path="/usuarios" element={<ProtectedRoute><RoleRoute allowedRoles={ADMIN_ROLES}><Usuarios /></RoleRoute></ProtectedRoute>} />
           </Routes>
         </HashRouter>
       </PdvFocusContext.Provider>

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Shield, KeyRound } from 'lucide-react';
 import BrandLogo from '../components/Branding/BrandLogo';
 import { useBranding } from '../context/BrandingContext';
+import { useLicense } from '../context/LicenseContext';
 import { api } from '../services/api';
 
 export default function Login() {
@@ -14,6 +15,7 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const { branding } = useBranding();
+  const { isValid, isTrial, licenseStatus } = useLicense();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -90,8 +92,15 @@ export default function Login() {
         </form>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '20px', marginTop: '8px' }}>
-          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Status da Licença:</span>
-          <span style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '12px', backgroundColor: 'rgba(0, 230, 118, 0.1)', color: 'var(--success)', fontWeight: '600' }}>ATIVO</span>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Status do Sistema:</span>
+          <span style={{ 
+            fontSize: '11px', padding: '4px 10px', borderRadius: '12px', 
+            backgroundColor: !isValid ? 'rgba(239, 68, 68, 0.1)' : isTrial ? 'rgba(var(--primary-rgb), 0.1)' : 'rgba(0, 230, 118, 0.1)', 
+            color: !isValid ? 'var(--danger)' : isTrial ? 'var(--primary)' : 'var(--success)', 
+            fontWeight: '700', textTransform: 'uppercase'
+          }}>
+            {!isValid ? (licenseStatus === 'suspended' ? 'SUSPENSO' : 'EXPIRADO') : isTrial ? 'MODO TRIAL' : 'LICENÇA ATIVA'}
+          </span>
         </div>
       </div>
     </div>
