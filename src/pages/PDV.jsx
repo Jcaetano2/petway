@@ -257,17 +257,68 @@ export default function PDV() {
     if (e.key === 'Enter') {
       e.preventDefault();
       const code = buscaCatalogo.trim();
-      if (!code) return;
-
-      const p = produtos.find(prod => prod.codigo_barras === code);
-      if (p) {
-        handleAddItem(p, 'produto');
-        setBuscaCatalogo('');
-      } else {
-        showToast('Produto inexistente ou sem barras associadas.', 'error');
-        setBuscaCatalogo('');
-        focusSearch();
+      
+      // Se a busca estiver vazia e já houver uma forma de pagamento (Pix/Cartão) selecionada, finaliza
+      if (!code) {
+        if (formaPagamentoUI && formaPagamentoUI !== 'dinheiro') {
+          handleFinalizar(true);
+        }
+        return;
       }
+
+      const codeLower = code.toLowerCase();
+
+      // 1. Tentar por código de barras exato
+      const pByBarcode = produtos.find(prod => prod.codigo_barras && prod.codigo_barras === code);
+      if (pByBarcode) {
+        handleAddItem(pByBarcode, 'produto');
+        setBuscaCatalogo('');
+        return;
+      }
+
+      // 2. Se não achou por código de barras, vamos ver o que está filtrado na tela
+      const currentFilteredServicos = servicos.filter(s => s.nome.toLowerCase().includes(codeLower));
+      const currentFilteredProdutos = produtos.filter(p => 
+        p.nome.toLowerCase().includes(codeLower) || 
+        (p.codigo_barras && p.codigo_barras.toLowerCase().includes(codeLower))
+      );
+
+      const totalFiltered = currentFilteredServicos.length + currentFilteredProdutos.length;
+
+      if (totalFiltered === 1) {
+        // Se a busca retornar apenas 1 item, adicione-o
+        if (currentFilteredServicos.length === 1) {
+          handleAddItem(currentFilteredServicos[0], 'servico');
+        } else {
+          handleAddItem(currentFilteredProdutos[0], 'produto');
+        }
+        setBuscaCatalogo('');
+        return;
+      }
+
+      if (totalFiltered > 1) {
+        // Se retornar vários, verifique se algum tem o nome EXATAMENTE igual
+        const exactServico = currentFilteredServicos.find(s => s.nome.toLowerCase() === codeLower);
+        if (exactServico) {
+          handleAddItem(exactServico, 'servico');
+          setBuscaCatalogo('');
+          return;
+        }
+        const exactProduto = currentFilteredProdutos.find(p => p.nome.toLowerCase() === codeLower);
+        if (exactProduto) {
+          handleAddItem(exactProduto, 'produto');
+          setBuscaCatalogo('');
+          return;
+        }
+
+        showToast('Busca retornou múltiplos itens. Clique no botão "+" do item desejado ou digite mais do nome.', 'warning');
+        focusSearch();
+        return;
+      }
+
+      showToast('Nenhum produto ou serviço encontrado com esse termo.', 'error');
+      setBuscaCatalogo('');
+      focusSearch();
     }
   };
 
