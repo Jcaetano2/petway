@@ -46,7 +46,7 @@ function setupIpcHandlers(ipcMain) {
       const db = await getDatabase();
       const user = await db.get('SELECT * FROM usuarios WHERE login = ? AND ativo = 1', [login]);
       if (!user) return { success: false, message: 'Usuário não encontrado ou inativo.' };
-      
+
       const valid = verifyPassword(password, user.senha);
       if (!valid) return { success: false, message: 'Senha incorreta.' };
 
@@ -65,7 +65,7 @@ function setupIpcHandlers(ipcMain) {
       const db = await getDatabase();
       const user = await db.get('SELECT * FROM usuarios WHERE login = ? AND ativo = 1', [login]);
       if (!user) return { success: false, message: 'Usuário não encontrado.' };
-      
+
       const valid = verifyPassword(currentPassword, user.senha);
       if (!valid) return { success: false, message: 'Senha atual incorreta.' };
 
@@ -107,7 +107,7 @@ function setupIpcHandlers(ipcMain) {
     try {
       const db = await getDatabase();
       const targetUser = await db.get('SELECT login FROM usuarios WHERE id = ?', [id]);
-      
+
       if (targetUser && targetUser.login === 'admin') {
         if (requesterLogin !== 'admin') {
           return { success: false, message: 'Acesso negado: Apenas o usuário admin original pode modificar sua própria conta.' };
@@ -137,12 +137,12 @@ function setupIpcHandlers(ipcMain) {
     try {
       const db = await getDatabase();
       const targetUser = await db.get('SELECT login FROM usuarios WHERE id = ?', [id]);
-      
+
       if (targetUser && targetUser.login === 'admin' && requesterLogin !== 'admin') {
-         return { success: false, message: 'Acesso negado: O usuário admin original não pode ser inativado por outros usuários.' };
+        return { success: false, message: 'Acesso negado: O usuário admin original não pode ser inativado por outros usuários.' };
       }
       if (targetUser && targetUser.login === 'admin' && !ativo) {
-         return { success: false, message: 'O usuário admin original é permanente e não pode ser inativado.' };
+        return { success: false, message: 'O usuário admin original é permanente e não pode ser inativado.' };
       }
 
       await db.run('UPDATE usuarios SET ativo=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', [ativo ? 1 : 0, id]);
@@ -217,9 +217,9 @@ function setupIpcHandlers(ipcMain) {
 
       // Formas de pagamento do mês (%)
       const formasPagamento = await db.all(`
-        SELECT COALESCE(forma_pagamento_detalhe, forma_pagamento) as forma_pagamento, COUNT(*) as count, IFNULL(SUM(valor_total), 0) as total
+        SELECT COALESCE(NULLIF(forma_pagamento_detalhe, ''), forma_pagamento) as forma_pagamento, COUNT(*) as count, IFNULL(SUM(valor_total), 0) as total
         FROM vendas WHERE status='pago' AND strftime('%Y-%m', created_at) = ?
-        GROUP BY forma_pagamento
+        GROUP BY COALESCE(NULLIF(forma_pagamento_detalhe, ''), forma_pagamento)
       `, [mesAtual]);
 
       // Top 5 produtos mais vendidos (mês)
@@ -244,10 +244,10 @@ function setupIpcHandlers(ipcMain) {
         LIMIT 5
       `, [mesAtual]);
 
-      return { 
+      return {
         // Retrocompatibilidade
-        agendamentosHoje: agRow?.count || 0, 
-        emAndamento: emRow?.count || 0, 
+        agendamentosHoje: agRow?.count || 0,
+        emAndamento: emRow?.count || 0,
         finalizados: fnRow?.count || 0,
         // Novos KPIs
         faturamentoDia: fatDia?.total || 0,
@@ -273,12 +273,12 @@ function setupIpcHandlers(ipcMain) {
     const db = await getDatabase();
     return await db.all('SELECT * FROM clientes WHERE ativo = 1 ORDER BY nome ASC');
   });
-  
+
   ipcMain.handle('db:clientes:getById', async (event, id) => {
     const db = await getDatabase();
     return await db.get('SELECT * FROM clientes WHERE id = ? AND ativo = 1', [id]);
   });
-  
+
   ipcMain.handle('db:clientes:create', async (event, { nome, telefone, email, cpf, endereco, observacoes }) => {
     const db = await getDatabase();
     const result = await db.run(
@@ -489,7 +489,7 @@ function setupIpcHandlers(ipcMain) {
         duracao_minutos, ativo
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        data.nome, data.descricao || '', data.categoria || '', data.preco_base, 
+        data.nome, data.descricao || '', data.categoria || '', data.preco_base,
         data.usa_preco_por_porte ? 1 : 0, data.preco_pequeno || 0, data.preco_medio || 0, data.preco_grande || 0,
         data.duracao_minutos || 30, data.ativo !== undefined ? data.ativo : 1
       ]
@@ -509,7 +509,7 @@ function setupIpcHandlers(ipcMain) {
         duracao_minutos=?, ativo=?, updated_at=CURRENT_TIMESTAMP 
       WHERE id=?`,
       [
-        data.nome, data.descricao || '', data.categoria || '', data.preco_base, 
+        data.nome, data.descricao || '', data.categoria || '', data.preco_base,
         data.usa_preco_por_porte ? 1 : 0, data.preco_pequeno || 0, data.preco_medio || 0, data.preco_grande || 0,
         data.duracao_minutos || 30, data.ativo !== undefined ? data.ativo : 1, data.id
       ]
@@ -544,7 +544,6 @@ function setupIpcHandlers(ipcMain) {
       [usuario_id || 1, valor_abertura || 0]
     );
 
-    await db.run('INSERT INTO movimentacoes_caixa (caixa_id, tipo, valor, descricao) VALUES (?, "entrada", ?, "Abertura de Caixa")', [result.lastID, valor_abertura || 0]);
     return { success: true, id: result.lastID };
   });
 
@@ -554,10 +553,11 @@ function setupIpcHandlers(ipcMain) {
       return { success: false, message: 'O valor informado de fechamento não pode ser nulo.' };
     }
 
-    const entradasRow = await db.get("SELECT IFNULL(SUM(valor), 0) as ttl FROM movimentacoes_caixa WHERE caixa_id = ? AND tipo = 'entrada'", [id]);
-    const saidasRow = await db.get("SELECT IFNULL(SUM(valor), 0) as ttl FROM movimentacoes_caixa WHERE caixa_id = ? AND tipo = 'saida'", [id]);
-    
-    const valor_sistema = entradasRow.ttl - saidasRow.ttl;
+    const entriesRow = await db.get("SELECT IFNULL(SUM(valor), 0) as ttl FROM movimentacoes_caixa WHERE caixa_id = ? AND tipo = 'entrada'", [id]);
+    const exitsRow = await db.get("SELECT IFNULL(SUM(valor), 0) as ttl FROM movimentacoes_caixa WHERE caixa_id = ? AND tipo = 'saida'", [id]);
+    const caixaInfo = await db.get("SELECT valor_abertura FROM caixa WHERE id = ?", [id]);
+
+    const valor_sistema = (caixaInfo?.valor_abertura || 0) + entriesRow.ttl - exitsRow.ttl;
     const diferenca = valor_fechamento_informado - valor_sistema;
 
     await db.run(
@@ -571,7 +571,7 @@ function setupIpcHandlers(ipcMain) {
     const db = await getDatabase();
     return await db.all('SELECT * FROM movimentacoes_caixa WHERE caixa_id = ? ORDER BY id DESC', [caixa_id]);
   });
-  
+
   ipcMain.handle('db:caixa:addMovimentacao', async (event, { caixa_id, tipo, valor, descricao, referencia_id }) => {
     const db = await getDatabase();
     const result = await db.run('INSERT INTO movimentacoes_caixa (caixa_id, tipo, valor, descricao, referencia_id) VALUES (?, ?, ?, ?, ?)', [caixa_id, tipo, valor, descricao, referencia_id]);
@@ -610,14 +610,14 @@ function setupIpcHandlers(ipcMain) {
   ipcMain.handle('db:atendimentos:start', async (event, id) => {
     const db = await getDatabase();
     const atendimento = await db.get('SELECT * FROM atendimentos WHERE id=?', [id]);
-    if (!atendimento) return {success: false, message: 'Agendamento/Atendimento não encontrado!'};
-    
+    if (!atendimento) return { success: false, message: 'Agendamento/Atendimento não encontrado!' };
+
     // Validating block (only start if "agendado" logically, but here it has standard mapping "aguardando")
     const agendamento = await db.get('SELECT status FROM agendamentos WHERE id=?', [atendimento.agendamento_id]);
     if (agendamento && agendamento.status !== 'agendado') {
-       return { success: false, message: 'O agendamento não consta como "agendado". Não é possível iniciar 2x ou iniciar finalizado.' };
+      return { success: false, message: 'O agendamento não consta como "agendado". Não é possível iniciar 2x ou iniciar finalizado.' };
     }
-    
+
     await db.run('UPDATE atendimentos SET status="em_atendimento", data_inicio=datetime("now", "localtime"), updated_at=CURRENT_TIMESTAMP WHERE id=?', [id]);
     // BUG #11 FIX: só atualiza agendamento se tiver vínculo (walk-ins não têm)
     if (atendimento.agendamento_id) {
@@ -676,20 +676,20 @@ function setupIpcHandlers(ipcMain) {
   ipcMain.handle('db:vendas:addItem', async (event, { venda_id, tipo, referencia_id, descricao_snapshot, quantidade, valor_unitario }) => {
     if (quantidade <= 0) return { success: false, message: 'A Quantidade estipulada deve ser maior que ZERO.' };
     const db = await getDatabase();
-    
+
     // ESTOQUE VALIDATION ON ADD
     if (tipo === 'produto') {
       const prod = await db.get('SELECT estoque, ativo FROM produtos WHERE id = ?', [referencia_id]);
       if (!prod || prod.ativo === 0) return { success: false, message: 'Produto não existe ou está inativo (bloqueado para venda).' };
-      
+
       // Check if product is already in the cart to avoid duplication and sum up their intent
       const checkCart = await db.get('SELECT id, quantidade FROM venda_itens WHERE venda_id = ? AND tipo = "produto" AND referencia_id = ?', [venda_id, referencia_id]);
       const futureTotalQty = checkCart ? (checkCart.quantidade + quantidade) : quantidade;
-      
+
       if (futureTotalQty > prod.estoque) {
         return { success: false, message: `O estoque do produto "${descricao_snapshot}" é insuficiente. Saldo atual: ${prod.estoque} | Tentativa: ${futureTotalQty}` };
       }
-      
+
       if (checkCart) {
         // Update instead of Insert
         const nSub = futureTotalQty * valor_unitario;
@@ -707,11 +707,11 @@ function setupIpcHandlers(ipcMain) {
     await db.run('UPDATE vendas SET subtotal = (SELECT IFNULL(SUM(subtotal), 0) FROM venda_itens WHERE venda_id=?), valor_total = ((SELECT IFNULL(SUM(subtotal), 0) FROM venda_itens WHERE venda_id=?) - desconto) WHERE id=?', [venda_id, venda_id, venda_id]);
     return { success: true };
   });
-  
+
   ipcMain.handle('db:vendas:removeItem', async (event, id) => {
     const db = await getDatabase();
     const item = await db.get('SELECT venda_id FROM venda_itens WHERE id=?', [id]);
-    if (!item) return {success:false};
+    if (!item) return { success: false };
     await db.run('DELETE FROM venda_itens WHERE id=?', [id]);
     await db.run('UPDATE vendas SET subtotal = (SELECT IFNULL(SUM(subtotal), 0) FROM venda_itens WHERE venda_id=?), valor_total = ((SELECT IFNULL(SUM(subtotal), 0) FROM venda_itens WHERE venda_id=?) - desconto) WHERE id=?', [item.venda_id, item.venda_id, item.venda_id]);
     return { success: true };
@@ -747,51 +747,57 @@ function setupIpcHandlers(ipcMain) {
     // STRICT CHECKOUT VALIDATION (PRE-CHECK)
     for (const item of checkItens) {
       if (item.tipo === 'produto') {
-         const prod = await db.get('SELECT estoque, id, nome, ativo FROM produtos WHERE id = ?', [item.referencia_id]);
-         if (!prod || prod.ativo === 0) return { success: false, message: `Produto Inválido/Inativo encontrado no carrinho -> RefID: ${item.referencia_id}` };
-         if (item.quantidade > prod.estoque) {
-           return { success: false, message: `BLINDAGEM DE ESTOQUE ATIVADA: Operação Abortada devio ao produto [${prod.nome}] não possuir Saldo Físico! Requisições: ${item.quantidade} / Disp: ${prod.estoque}` };
-         }
+        const prod = await db.get('SELECT estoque, id, nome, ativo FROM produtos WHERE id = ?', [item.referencia_id]);
+        if (!prod || prod.ativo === 0) return { success: false, message: `Produto Inválido/Inativo encontrado no carrinho -> RefID: ${item.referencia_id}` };
+        if (item.quantidade > prod.estoque) {
+          return { success: false, message: `BLINDAGEM DE ESTOQUE ATIVADA: Operação Abortada devio ao produto [${prod.nome}] não possuir Saldo Físico! Requisições: ${item.quantidade} / Disp: ${prod.estoque}` };
+        }
       }
     }
 
     await db.exec('BEGIN IMMEDIATE TRANSACTION');
     try {
-    // CHECKOUT PROCESS (ESTOQUE)
-    // Decreasing inventory
-    for (const item of checkItens) {
-      if (item.tipo === 'produto') {
-         // Subtraindo
-         await db.run('UPDATE produtos SET estoque = estoque - ? WHERE id = ?', [item.quantidade, item.referencia_id]);
-         // Gerar Ledger de Movimentação Logistica (auditing)
-         await db.run(
-           'INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, motivo, referencia_id) VALUES (?, "saida", ?, "venda", ?)',
-           [item.referencia_id, item.quantidade, id]
-         );
+      // CHECKOUT PROCESS (ESTOQUE)
+      // Decreasing inventory
+      for (const item of checkItens) {
+        if (item.tipo === 'produto') {
+          // Subtraindo
+          await db.run('UPDATE produtos SET estoque = estoque - ? WHERE id = ?', [item.quantidade, item.referencia_id]);
+          // Gerar Ledger de Movimentação Logistica (auditing)
+          await db.run(
+            'INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, motivo, referencia_id) VALUES (?, "saida", ?, "venda", ?)',
+            [item.referencia_id, item.quantidade, id]
+          );
+        }
       }
-    }
 
-    const desc = desconto ? parseFloat(desconto) : 0;
-    const sub = await db.get('SELECT IFNULL(SUM(subtotal), 0) as s FROM venda_itens WHERE venda_id = ?', [id]);
-    const total = sub.s - desc;
+      const desc = desconto ? parseFloat(desconto) : 0;
+      const sub = await db.get('SELECT IFNULL(SUM(subtotal), 0) as s FROM venda_itens WHERE venda_id = ?', [id]);
+      const total = sub.s - desc;
 
-    await db.run(
-      'UPDATE vendas SET desconto=?, valor_total=?, forma_pagamento=?, forma_pagamento_detalhe=?, status="pago", valor_recebido=?, troco=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
-      [desc, total, forma_pagamento, forma_pagamento_detalhe || forma_pagamento, valor_recebido || null, troco || null, id]
-    );
+      await db.run(
+        'UPDATE vendas SET desconto=?, valor_total=?, forma_pagamento=?, forma_pagamento_detalhe=?, status="pago", valor_recebido=?, troco=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+        [desc, total, forma_pagamento, forma_pagamento_detalhe || forma_pagamento, valor_recebido || null, troco || null, id]
+      );
 
-    // Entrada caixa cascaded
-    await db.run('INSERT INTO movimentacoes_caixa (caixa_id, tipo, valor, descricao, referencia_id) VALUES (?, "entrada", ?, ?, ?)',
-      [cx.id, total, `Venda Faturada #${id} - Pay: ${forma_pagamento}`, id]);
+      // Entrada caixa cascaded
+      await db.run('INSERT INTO movimentacoes_caixa (caixa_id, tipo, valor, descricao, referencia_id) VALUES (?, "entrada", ?, ?, ?)',
+        [cx.id, total, `Venda Faturada #${id} - Pay: ${forma_pagamento}`, id]);
 
-    // O status do atendimento vinculado vira "faturado".
-    const vda = await db.get('SELECT atendimento_id FROM vendas WHERE id=?', [id]);
-    if (vda && vda.atendimento_id) {
-       await db.run('UPDATE atendimentos SET status="faturado" WHERE id=?', [vda.atendimento_id]);
-    }
+      // O status do atendimento vinculado vira "faturado".
+      const vda = await db.get('SELECT atendimento_id FROM vendas WHERE id=?', [id]);
+      if (vda && vda.atendimento_id) {
+        await db.run('UPDATE atendimentos SET status="faturado" WHERE id=?', [vda.atendimento_id]);
+        
+        // Sincronizar com a agenda (Fila e Consultório)
+        const attInfo = await db.get('SELECT agendamento_id FROM atendimentos WHERE id=?', [vda.atendimento_id]);
+        if (attInfo && attInfo.agendamento_id) {
+           await db.run('UPDATE agendamentos SET status="faturado", updated_at=CURRENT_TIMESTAMP WHERE id=?', [attInfo.agendamento_id]);
+        }
+      }
 
-    await db.exec('COMMIT');
-    return { success: true };
+      await db.exec('COMMIT');
+      return { success: true };
     } catch (error) {
       await db.exec('ROLLBACK');
       return { success: false, message: error.message };
@@ -803,22 +809,22 @@ function setupIpcHandlers(ipcMain) {
     const venda = await db.get('SELECT status FROM vendas WHERE id = ?', [id]);
     await db.exec('BEGIN IMMEDIATE TRANSACTION');
     try {
-    
-    // BUG-08 FIX: se a venda já foi paga, reverter o estoque dos produtos
-    if (venda && venda.status === 'pago') {
-      const itens = await db.all('SELECT * FROM venda_itens WHERE venda_id = ? AND tipo = "produto"', [id]);
-      for (const item of itens) {
-        await db.run('UPDATE produtos SET estoque = estoque + ? WHERE id = ?', [item.quantidade, item.referencia_id]);
-        await db.run(
-          'INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, motivo, referencia_id) VALUES (?, "entrada", ?, "cancelamento de venda", ?)',
-          [item.referencia_id, item.quantidade, id]
-        );
-      }
-    }
 
-    await db.run('UPDATE vendas SET status="cancelado", updated_at=CURRENT_TIMESTAMP WHERE id=?', [id]);
-    await db.exec('COMMIT');
-    return { success: true };
+      // BUG-08 FIX: se a venda já foi paga, reverter o estoque dos produtos
+      if (venda && venda.status === 'pago') {
+        const itens = await db.all('SELECT * FROM venda_itens WHERE venda_id = ? AND tipo = "produto"', [id]);
+        for (const item of itens) {
+          await db.run('UPDATE produtos SET estoque = estoque + ? WHERE id = ?', [item.quantidade, item.referencia_id]);
+          await db.run(
+            'INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, motivo, referencia_id) VALUES (?, "entrada", ?, "cancelamento de venda", ?)',
+            [item.referencia_id, item.quantidade, id]
+          );
+        }
+      }
+
+      await db.run('UPDATE vendas SET status="cancelado", updated_at=CURRENT_TIMESTAMP WHERE id=?', [id]);
+      await db.exec('COMMIT');
+      return { success: true };
     } catch (error) {
       await db.exec('ROLLBACK');
       return { success: false, message: error.message };
@@ -851,12 +857,12 @@ function setupIpcHandlers(ipcMain) {
       INSERT INTO produtos (nome, codigo_barras, categoria, fornecedor, custo, preco, estoque, estoque_minimo, ncm, cfop, cst_csosn, unidade_comercial, vendido_por_peso, unidade_medida) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [data.nome, data.codigo_barras || '', data.categoria || '', data.fornecedor || '', data.custo || 0, data.preco, data.estoque || 0, data.estoque_minimo || 0, data.ncm || '', data.cfop || '', data.cst_csosn || '', data.unidade_comercial || '', data.vendido_por_peso ? 1 : 0, data.unidade_medida || (data.vendido_por_peso ? 'kg' : 'un')]);
-    
+
     // Inject initial positive discrepancy tracking logic if created with stock > 0
     if (data.estoque && data.estoque > 0) {
       await db.run('INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, motivo) VALUES (?, "entrada", ?, "cadastro inicial")', [result.lastID, data.estoque]);
     }
-    
+
     return { success: true, id: result.lastID };
   });
 
@@ -884,7 +890,7 @@ function setupIpcHandlers(ipcMain) {
   ipcMain.handle('db:estoque:entrada', async (event, { produto_id, quantidade, motivo }) => {
     if (quantidade <= 0) return { success: false, message: 'Entrada exige valor líquido > 0.' };
     const db = await getDatabase();
-    
+
     await db.run('UPDATE produtos SET estoque = estoque + ?, updated_at=CURRENT_TIMESTAMP WHERE id = ?', [quantidade, produto_id]);
     await db.run('INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, motivo) VALUES (?, "entrada", ?, ?)', [produto_id, quantidade, motivo || 'entrada manual']);
     return { success: true };
@@ -905,17 +911,17 @@ function setupIpcHandlers(ipcMain) {
     // Quantidade here works as absolute set point
     if (quantidade < 0) return { success: false, message: 'O Ajuste Cego / Saldo Virtual Total não pode cair abaixo de 0.' };
     const db = await getDatabase();
-    
+
     const curr = await db.get('SELECT estoque FROM produtos WHERE id = ?', [produto_id]);
     const dif = quantidade - curr.estoque;
-    
+
     if (dif === 0) return { success: false, message: 'Valor contábil inalterado.' };
 
     // BUG #10 FIX: registrar delta (diferença) e não a quantidade absoluta
     const deltaAbs = Math.abs(dif);
     await db.run('UPDATE produtos SET estoque = ?, updated_at=CURRENT_TIMESTAMP WHERE id = ?', [quantidade, produto_id]);
     await db.run('INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, motivo) VALUES (?, "ajuste", ?, ?)', [produto_id, deltaAbs, motivo || 'balanço contábil cego']);
-    
+
     return { success: true };
   });
 
@@ -930,7 +936,7 @@ function setupIpcHandlers(ipcMain) {
     try {
       const userDataPath = app.getPath('userData');
       const dbPath = path.join(userDataPath, 'petshop.db');
-      
+
       const { canceled, filePath } = await dialog.showSaveDialog({
         title: 'Exportar Backup',
         defaultPath: path.join(app.getPath('documents'), `petshop_backup_${Date.now()}.db`),
@@ -1221,7 +1227,7 @@ function setupIpcHandlers(ipcMain) {
       const db = await getDatabase();
       const cfg = await ensureConfigFiscal(db);
       if (!cfg || !cfg.api_token) return { success: false, error: 'Configuração fiscal ou token não encontrado.' };
-      
+
       const { getNfceStatus } = require('./fiscal/focusApi');
       const result = await getNfceStatus(cfg, referencia);
       return { success: true, data: result.data, httpStatus: result.httpStatus };
@@ -1324,11 +1330,11 @@ function setupIpcHandlers(ipcMain) {
         pagto_pix_ativo=?, pagto_credito_ativo=?, pagto_debito_ativo=?, 
         updated_at=CURRENT_TIMESTAMP WHERE id=1`,
       [
-        data.exigir_abertura_caixa ? 1 : 0, data.apenas_um_caixa_aberto ? 1 : 0, 
-        data.confirmar_fechamento_caixa ? 1 : 0, data.permitir_sangria ? 1 : 0, 
-        data.permitir_suprimento ? 1 : 0, data.desconto_maximo_percentual || 10, 
-        data.exigir_obs_sangria ? 1 : 0, data.exigir_obs_ajuste ? 1 : 0, 
-        data.pagto_dinheiro_ativo ? 1 : 0, data.pagto_pix_ativo ? 1 : 0, 
+        data.exigir_abertura_caixa ? 1 : 0, data.apenas_um_caixa_aberto ? 1 : 0,
+        data.confirmar_fechamento_caixa ? 1 : 0, data.permitir_sangria ? 1 : 0,
+        data.permitir_suprimento ? 1 : 0, data.desconto_maximo_percentual || 10,
+        data.exigir_obs_sangria ? 1 : 0, data.exigir_obs_ajuste ? 1 : 0,
+        data.pagto_dinheiro_ativo ? 1 : 0, data.pagto_pix_ativo ? 1 : 0,
         data.pagto_credito_ativo ? 1 : 0, data.pagto_debito_ativo ? 1 : 0
       ]
     );
@@ -1382,7 +1388,7 @@ function setupIpcHandlers(ipcMain) {
       db.get('SELECT usar_gaveta, modo_gaveta FROM config_hardware WHERE id=1'),
       db.get('SELECT ativa as balanca_ativa, porta as porta_balanca, protocolo as protocolo_balanca, baud_rate FROM config_balanca WHERE id=1')
     ]);
-    
+
     return {
       api_provider: fiscal?.api_provider || 'focus',
       api_url: fiscal?.api_url || '',
@@ -1404,7 +1410,7 @@ function setupIpcHandlers(ipcMain) {
     const apiProvider = ['focus', 'gatewayx'].includes(data.api_provider) ? data.api_provider : 'focus';
     const modoGaveta = data.modo_gaveta === 'serial' ? 'impressora' : (data.modo_gaveta || 'impressora');
     const protocoloBalanca = 'simulado';
-    
+
     await Promise.all([
       db.run(
         'UPDATE config_fiscal SET api_provider=?, api_url=?, api_token=?, ambiente=?, updated_at=CURRENT_TIMESTAMP WHERE id=1',
@@ -1580,7 +1586,7 @@ function setupIpcHandlers(ipcMain) {
   ipcMain.handle('db:clientes:getResumo', async (event, clienteId) => {
     try {
       const db = await getDatabase();
-      
+
       const totalVisitas = await db.get(`
         SELECT COUNT(DISTINCT a.id) as count
         FROM atendimentos a
@@ -1687,11 +1693,11 @@ function setupIpcHandlers(ipcMain) {
   ipcMain.handle('license:validate', async (event, { key }) => {
     const hwid = licenseService.getHWID();
     const localData = await licenseService.getLocalLicense();
-    
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
+
       let response;
       try {
         response = await fetch(`${API_BASE_URL}/license/validate`, {
@@ -1715,7 +1721,7 @@ function setupIpcHandlers(ipcMain) {
         console.error('[license:validate] Servidor retornou não-JSON:', rawText.substring(0, 200));
         throw new Error(`Servidor retornou resposta inválida. Verifique a URL: ${API_BASE_URL}`);
       }
-      
+
       if (!response.ok) {
         // Servidor confirmou explicitamente que a licença é inválida
         await licenseService.saveLocalLicense({ status: 'revoked' });
@@ -1738,7 +1744,7 @@ function setupIpcHandlers(ipcMain) {
     } catch (error) {
       // Modo offline: servidor inacessível ou timeout
       console.warn('[license:validate] Offline mode:', error.message);
-      
+
       if (!localData || !localData.token) {
         return { success: false, error: 'Nenhuma licença local encontrada para uso offline.' };
       }
