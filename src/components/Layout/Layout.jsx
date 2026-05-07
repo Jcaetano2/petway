@@ -191,6 +191,13 @@ function Sidebar() {
             <NavLink to="/configuracoes" className={`nav-item ${location.pathname === '/configuracoes' ? 'active' : ''}`}><Settings size={18} /> Configurações</NavLink>
           </>
         )}
+        <button 
+          className="nav-item" 
+          onClick={() => api.system.openExternal('https://wa.me/5567991413940?text=Olá!%20Preciso%20de%20suporte%20com%20o%20PetWay.')}
+          style={{ width: '100%', border: 'none', background: 'transparent', color: '#10B981', textAlign: 'left', cursor: 'pointer' }}
+        >
+          <MessageCircle size={18} /> Suporte WhatsApp
+        </button>
         <button className="nav-item" onClick={logout} style={{ width: '100%', border: 'none', background: 'transparent', color: 'var(--danger)', textAlign: 'left', cursor: 'pointer' }}><LogOut size={18} /> Sair</button>
       </div>
     </div>

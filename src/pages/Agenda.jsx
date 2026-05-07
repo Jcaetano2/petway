@@ -217,7 +217,7 @@ export default function Agenda() {
               {a.status === 'agendado' && <button onClick={() => handleStatusChange(a.id, 'em_atendimento')} title="Iniciar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warning)', padding: '4px' }}><Play size={14} /></button>}
               {a.status === 'em_atendimento' && <button onClick={() => handleStatusChange(a.id, 'finalizado')} title="Finalizar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--success)', padding: '4px' }}><Check size={14} /></button>}
               {(a.status === 'agendado' || a.status === 'em_atendimento') && <button onClick={() => handleStatusChange(a.id, 'cancelado')} title="Cancelar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger)', padding: '4px' }}><X size={14} /></button>}
-              {a.status === 'agendado' && <button onClick={() => handleWhatsApp(a)} title="WhatsApp" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#25D366', padding: '4px' }}><MessageCircle size={14} /></button>}
+              {(a.status === 'agendado' || a.status === 'em_atendimento' || a.status === 'finalizado') && <button onClick={() => handleWhatsApp(a)} title="Enviar Mensagem WhatsApp" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#25D366', padding: '4px' }}><MessageCircle size={14} /></button>}
             </>
           )}
         </div>

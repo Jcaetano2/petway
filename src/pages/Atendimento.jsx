@@ -165,11 +165,13 @@ export default function Atendimento() {
                     <Check size={18} /> Finalizar
                   </button>
                 )}
-                {a.status === 'finalizado' && (
+                {(a.status === 'finalizado' || a.status === 'faturado') && (
                   <>
-                    <button onClick={() => handleSendToCaixa(a)} className="btn" style={{ background: 'var(--primary)', padding: '10px 16px' }}>
-                      <ShoppingCart size={18} /> Enviar para Caixa
-                    </button>
+                    {a.status === 'finalizado' && (
+                      <button onClick={() => handleSendToCaixa(a)} className="btn" style={{ background: 'var(--primary)', padding: '10px 16px' }}>
+                        <ShoppingCart size={18} /> Enviar para Caixa
+                      </button>
+                    )}
                     <button onClick={() => {
                       const cli = clientes.find(c => c.id === a.cliente_id);
                       if (!cli?.telefone) {

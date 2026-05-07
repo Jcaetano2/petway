@@ -161,8 +161,8 @@ export default function ConfigLicenca() {
         )}
       </div>
 
-      {/* 2. Commercial / Conversion Section (Only in Trial) */}
-      {isTrial && (
+      {/* 2. Commercial / Conversion Section (Visible for non-lifetime) */}
+      {!isLifetime && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
           {/* Plan Mensal */}
           <div className="card" style={{ 
@@ -186,7 +186,7 @@ export default function ConfigLicenca() {
               <li style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Check size={14} color="#10B981" /> Backup em nuvem incluso</li>
             </ul>
             
-            <button className="btn" onClick={() => api.system.openExternal('https://wa.me/5567991413940?text=Ol%C3%A1!%20Gostaria%20de%20adquirir%20um%20plano%20do%20PetWay.')} style={{ width: '100%', background: '#3B82F6' }}>Assinar Agora</button>
+            <button className="btn" onClick={() => api.system.openExternal('https://wa.me/5567991413940?text=Olá!%20Gostaria%20de%20adquirir%20um%20plano%20do%20PetWay.')} style={{ width: '100%', background: '#3B82F6' }}>Assinar Agora</button>
           </div>
 
           {/* Plan Definitivo */}
@@ -211,7 +211,7 @@ export default function ConfigLicenca() {
               <li style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.7 }}><Lock size={14} /> Atualizações pontuais</li>
             </ul>
             
-            <button className="btn" onClick={() => api.system.openExternal('https://wa.me/5567991413940?text=Ol%C3%A1.%20Gostaria%20de%20adquirir%20uma%20licen%C3%A7a%20permanente%20do%20PetWay.')} style={{ width: '100%', background: '#8B5CF6' }}>Comprar Licença</button>
+            <button className="btn" onClick={() => api.system.openExternal('https://wa.me/5567991413940?text=Olá.%20Gostaria%20de%20adquirir%20uma%20licença%20permanente%20do%20PetWay.')} style={{ width: '100%', background: '#8B5CF6' }}>Comprar Licença</button>
           </div>
         </div>
       )}
